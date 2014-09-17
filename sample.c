@@ -39,8 +39,23 @@ int main() {
 		/* Note that readline strips away the final \n */
 		/* For Perl junkies, readline automatically chomps the line read */
 
+		reply[sizeof(reply)-2] = '\0'; /* sets the \n to \0 in the reply. This makes running commands easier. */
+
 		if (!strcmp(reply, "bye")) {
 			bailout = 1;
+		} else if(strcmp(reply, "ls\n")) {
+
+			pid_t pid;
+
+			pid = fork();
+			if(pid < 0) { /* error occurred */
+				perror("fork() failed");
+			} else if (pid == 0) { /* child process */
+				execlp("/bin/ls", "ls", NULL);
+			} else { /* parent process */
+				wait(NULL);
+				printf("Child Complete\n");
+			}
 		} else {
 			printf("\nYou said: %s\n\n", reply);
 		}
