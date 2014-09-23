@@ -19,6 +19,25 @@ char* createPrompt(const char* start, char* middle, const char* end, char* promp
 	return prompt; //return the prompt
 }
 
+/* take an input string tokenizes it using spaces into argv */
+void parseInput(char* input, char** argv){
+
+	int i = 0;
+
+	argv[0] = strtok(input, " ");
+	i++;
+
+	while (1) {
+
+		argv[i] = strtok(NULL, " ");
+
+		if(argv[i] == NULL) {
+			return;
+		}
+		i++;
+	}
+}
+
 int main() {
 
 	/* variables used for displaying the prompt */
@@ -29,10 +48,6 @@ int main() {
 
 	/* variable that holds arguments for the execute command */
 	char* argv[MAX_ARGS];
-
-	argv[0] = "/bin/ls";
-	argv[1] = "-l";
-	argv[2] = NULL;
 
 	if (getcwd(currentDir, sizeof(currentDir)) != NULL){ //attempts to get the current working directory
 		printf("%s\n\n", currentDir); // if successful, 
@@ -46,19 +61,15 @@ int main() {
 	int bailout = 0;
 	while (!bailout) {
 		char* reply = readline(prompt);
-		/* Note that readline strips away the final \n */
-		/* For Perl junkies, readline automatically chomps the line read */
 
-		/*
-			need to isolate inital command
-
-			and then tokenize the rest
-		*/
-
+		parseInput(reply, argv);
 
 		if (!strcmp(reply, "bye")) {
 			bailout = 1;
-		} else if(strcmp(reply, "ls") == 0) {
+		} else if (!strcmp(reply, "cd")) {
+			printf("Need to implement cd\n");
+			/* will need to recreate the prompt again createPrompt(prePrompt, currentDir, postPrompt, prompt); */
+		} else {
 
 			pid_t pid;
 
@@ -78,8 +89,6 @@ int main() {
 				wait(NULL);
 				printf("Child Complete\n");
 			}
-		} else {
-			printf("\nYou said: %s\n\n", reply);
 		}
 	
 		free(reply);
