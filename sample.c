@@ -10,7 +10,16 @@
 
 #define MAX_ARGS 64 /* defines the maximum number of command line arguments. This should be dynamically allocated in future. */
 
+void changeDirectory(char* directory) {
+	if(chdir(directory) == -1) {
+		printf("Not a valid path.\n");
+	}
+}
+
 char* createPrompt(const char* start, char* middle, const char* end, char* prompt){ //takes the 3 parts of the prompt, and puts them together.
+
+	free(middle);
+	middle = getcwd(NULL, -1);
 
 	strcpy(prompt, start); //copy the start into the prompt
 	strcat(prompt, middle); //add on the middle
@@ -38,25 +47,35 @@ void parseInput(char* input, char** argv){
 	}
 }
 
+int getLengthOfDoubleArray(char** argv) {
+
+	int i = 0;
+
+	while (1) {
+		if (argv[i] == NULL) {
+			return i;
+		}
+		i++;
+	}
+}
+
 int main() {
 
 	/* variables used for displaying the prompt */
 	const char* prePrompt = "RSI: ";
 	const char* postPrompt = " > ";
 	char prompt[PATH_MAX+6+4];
-	char currentDir[PATH_MAX]; //allocate the maximum possible length of path, from linux/limits.h
+	char* currentDir; //allocate the maximum possible length of path, from linux/limits.h
+	char* argv[MAX_ARGS]; 	/* variable that holds arguments for the execute command */
 
-	/* variable that holds arguments for the execute command */
-	char* argv[MAX_ARGS];
+	currentDir = getcwd(NULL, -1);
 
-	if (getcwd(currentDir, sizeof(currentDir)) != NULL){ //attempts to get the current working directory
-		printf("%s\n\n", currentDir); // if successful, 
+	if (currentDir != NULL){ //attempts to get the current working directory
+		createPrompt(prePrompt, currentDir, postPrompt, prompt);
 	} else {
 		perror("getcwd() error");
 		return -1;
 	}
-
-	createPrompt(prePrompt, currentDir, postPrompt, prompt);
 
 	int bailout = 0;
 	while (!bailout) {
@@ -67,8 +86,45 @@ int main() {
 		if (!strcmp(reply, "bye")) {
 			bailout = 1;
 		} else if (!strcmp(reply, "cd")) {
-			printf("Need to implement cd\n");
-			/* will need to recreate the prompt again createPrompt(prePrompt, currentDir, postPrompt, prompt); */
+
+			if (getLengthOfDoubleArray(argv) > 2) {
+				printf("Error: cd takes one argument.\n");
+			} else if (getLengthOfDoubleArray(argv) == 1) {
+				printf("changing directory to /home/user/\n");
+				chdir("/home/user");
+				free(currentDir);
+				currentDir = getcwd(NULL, -1);
+			} else {
+
+				if (strstr(argv[1], "~") != NULL) {
+					printf("contains ~\n");
+				} else if (strstr(argv[1], "..") != NULL) {
+					// need to see if it starts with ..
+					if (argv[1][0] == '.' && argv[1][1] == '.') {
+						free(currentDir);
+						currentDir = realpath(argv[1], NULL);
+						changeDirectory(currentDir);
+						createPrompt(prePrompt, currentDir, postPrompt, prompt);
+					} else { /* if it doesn't start with it, then it is somewhere in the middle */
+						currentDir = strcat(currentDir, "/");
+						currentDir = strcat(currentDir, argv[1]);
+						currentDir = realpath(currentDir, NULL);
+						
+						changeDirectory(currentDir);
+						createPrompt(prePrompt, currentDir, postPrompt, prompt);
+					}
+
+				} else {
+					currentDir = strcat(currentDir, "/");
+					currentDir = strcat(currentDir, argv[1]);
+					currentDir = realpath(currentDir, NULL);
+					
+					changeDirectory(currentDir);
+					createPrompt(prePrompt, currentDir, postPrompt, prompt);
+				}
+
+			}
+
 		} else {
 
 			pid_t pid;
@@ -79,15 +135,12 @@ int main() {
 			if(pid < 0) { /* error occurred */
 				perror("fork() failed");
 			} else if (pid == 0) { /* child process */
-				printf("I am in the child process\n");
 				error = execvp(argv[0], argv);
 				if(error == -1){
 					printf("Error in execvp occurred\n");
 				}
 			} else { /* parent process */
-				printf("I am in the parent process\n");
 				wait(NULL);
-				printf("Child Complete\n");
 			}
 		}
 	
