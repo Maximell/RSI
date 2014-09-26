@@ -10,6 +10,68 @@
 
 #define MAX_ARGS 64 /* defines the maximum number of command line arguments. This should be dynamically allocated in future. */
 
+typedef struct processNode {
+	int processId;
+	char* program;
+	struct processNode* prev;
+	struct processNode* next;
+} processNode;
+
+/* Global Variables */
+processNode* headProcess;
+
+void addProcessNode(processNode* newNode) {
+
+	newNode->next = headProcess;
+	if(newNode->next != NULL){
+		newNode->next->prev = newNode;
+	}
+	headProcess = newNode;
+
+}
+
+processNode* newNode(int processId, char* program) {
+
+	processNode* newNode = (processNode*) malloc(sizeof(processNode));
+
+	newNode->processId = processId;
+	newNode->program = program;
+	newNode->prev = NULL;
+	newNode->next = NULL;
+
+	return newNode;
+}
+
+/* this is not complete */
+void deleteNode(processNode* node) {
+	 /*free(&node->program); implement this after malloc for the program name is working */
+	 free(node);
+}
+
+/* returns 1 for success, -1 for failure */
+int removeProcessNode(int processId) {
+
+	processNode* currentNode = headProcess;
+
+	while (currentNode != NULL) {
+
+		if (currentNode->processId == processId) {
+			if(currentNode->prev != NULL) {
+				currentNode->prev->next = currentNode->next;
+			} else { /* if the 'prev' attribute is null, then it must be the first node in the list*/
+				headProcess = currentNode->next;
+			}
+			if (currentNode->next != NULL) {
+				currentNode->next->prev = currentNode->prev;
+			}
+			deleteNode(currentNode);
+			return 1;
+		}
+		currentNode = currentNode->next;
+	}
+	return -1;
+}
+
 void changeDirectory(char* directory) {
 	if(chdir(directory) == -1) {
 		printf("Not a valid path.\n");
@@ -59,6 +121,15 @@ int getLengthOfDoubleArray(char** argv) {
 	}
 }
 
+void childSignalHandler() {
+	pid_t pid = waitpid(-1, NULL, WNOHANG);
+	waitpid(pid, NULL, WNOHANG);
+
+	if (removeProcessNode(pid) == 1) {
+		printf("Process with id %d terminated.\n", pid);
+	}
+}
+
 int main() {
 
 	/* variables used for displaying the prompt */
@@ -67,6 +138,8 @@ int main() {
 	char prompt[PATH_MAX+6+4];
 	char* currentDir; //allocate the maximum possible length of path, from linux/limits.h
 	char* argv[MAX_ARGS]; 	/* variable that holds arguments for the execute command */
+
+	signal(SIGCHLD, &childSignalHandler);
 
 	currentDir = getcwd(NULL, -1);
 
@@ -85,6 +158,34 @@ int main() {
 
 		if (!strcmp(reply, "bye")) {
 			bailout = 1;
+		} else if (!strcmp(reply, "bg")) {
+
+			pid_t pid;
+
+			int error = 0;
+
+			pid = fork();
+			addProcessNode(newNode(pid, "sample string"));
+			if(pid < 0) { /* error occurred */
+				perror("fork() failed");
+			} else if (pid == 0) { /* child process */
+				error = execvp(argv[1], &argv[1]);
+				if(error == -1){
+					printf("Error in execvp occurred\n");
+				}
+			}
+
+		} else if (!strcmp(reply, "bglist")){
+
+			processNode* currentNode = headProcess;
+			int bgCount = 0;
+
+			while(currentNode != NULL) {
+				printf("%d: %s\n", currentNode->processId, currentNode->program);
+				currentNode = currentNode->next;
+				bgCount++;
+			}
+			printf("Total Background Jobs:  %d\n", bgCount);
 		} else if (!strcmp(reply, "cd")) {
 
 			if (getLengthOfDoubleArray(argv) > 2) {
@@ -138,6 +239,7 @@ int main() {
 				error = execvp(argv[0], argv);
 				if(error == -1){
 					printf("Error in execvp occurred\n");
+					exit(0);
 				}
 			} else { /* parent process */
 				wait(NULL);
